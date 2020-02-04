@@ -7,7 +7,6 @@ public class Main {
     public static SortedSet<File> filesSet = new TreeSet<>(Comparator.comparingLong(File::length));
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
-
         String dir_path = args[0];
         System.out.println("Path: " + dir_path);
 
