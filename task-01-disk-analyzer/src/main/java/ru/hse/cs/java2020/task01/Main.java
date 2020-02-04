@@ -1,9 +1,7 @@
 package ru.hse.cs.java2020.task01;
 import java.io.File;
 import java.nio.file.Files;
-import java.util.Comparator;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 public class Main {
     public static SortedSet<File> filesSet = new TreeSet<>(Comparator.comparingLong(File::length));
@@ -21,12 +19,27 @@ public class Main {
             System.out.println("File: " + dir.getAbsolutePath() + ", size: " + dir.length());
             return;
         }
-        // Здесь уже точно папка (должно быть)
+        // assert(dir.isDirectory())
 
         long dirNameLen = getMaxDirNameLength(dir), size = getDirSize(dir), filesNumber = getFilesNumber(dir);
-        String nameFormat = String.format("%%%ds", dirNameLen);
         System.out.println("Head folder: " + dir.getAbsolutePath() + ", " +  filesNumber + " items, size: " + size);
-        getItemsSize(dir, size, nameFormat);
+        ArrayList<FileInfo> fileInfos = getItemsSize(dir);
+        Collections.sort(fileInfos, Collections.reverseOrder());
+        int cnt = 0;
+        for (FileInfo elem: fileInfos) {
+            cnt++;
+            System.out.printf("Item %3d: ", cnt);
+            double part = elem.size / (1.0 * size) * 100;
+            // assert(part <= 100)
+            if (elem.file.isDirectory()) {
+                String longName = String.format(String.format("%%%ds", dirNameLen), elem.file.getName());
+                System.out.printf("folder %s, %9d items, %12d size, %.4f%% part\n",
+                        longName, elem.itemsCnt, elem.size, part);
+            } else {
+                String longName = String.format(String.format("%%%ds", dirNameLen + 2), elem.file.getName());
+                System.out.printf("file %s, %29d size, %.4f%% part\n", longName, elem.size, part);
+            }
+        }
 
         System.out.println("\nLargest files:");
         long fileNameLen = 0;
@@ -84,15 +97,36 @@ public class Main {
         return curNumber;
     }
 
-    public static void getItemsSize(File dir, long dirSize, String nameFormat) {
-        int foldersCnt = 0;
+    public static ArrayList<FileInfo> getItemsSize(File dir) {
+        ArrayList<FileInfo> filesArray = new ArrayList<>();
         for (File elem: dir.listFiles()) {
-            if (!Files.isSymbolicLink(elem.toPath()) && elem.isDirectory()) {
-                foldersCnt++;
-                long size = getDirSize(elem), filesNumber = getFilesNumber(elem);
-                System.out.printf("Folder %3d: %s, %6d items, size %10d (%.4f%%)\n",
-                        foldersCnt, String.format(nameFormat, elem.getName()), filesNumber, size, size / (1.0 * dirSize) * 100);
+            if (!Files.isSymbolicLink(elem.toPath())) {
+                if (elem.isDirectory()) {
+                    long size = getDirSize(elem), filesNumber = getFilesNumber(elem);
+                    FileInfo curFile = new FileInfo(elem, filesNumber, size);
+                    filesArray.add(curFile);
+                } else if (elem.isFile()) {
+                    FileInfo curFile = new FileInfo(elem, -1, elem.length());
+                    filesArray.add(curFile);
+                }
             }
         }
+        return filesArray;
+    }
+}
+
+class FileInfo implements Comparable<FileInfo> {
+    public File file;
+    public long itemsCnt, size;
+
+    public FileInfo(File file, long itemsCnt, long size) {
+        this.file = file;
+        this.itemsCnt = itemsCnt;
+        this.size = size;
+    }
+
+    @Override
+    public int compareTo(FileInfo other) {
+        return Long.compare(this.size, other.size);
     }
 }
