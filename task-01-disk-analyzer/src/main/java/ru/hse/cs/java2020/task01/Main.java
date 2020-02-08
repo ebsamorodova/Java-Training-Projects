@@ -1,16 +1,24 @@
 package ru.hse.cs.java2020.task01;
 import java.io.File;
 import java.nio.file.Files;
-import java.util.*;
+import java.text.DecimalFormat;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Collections;
 
 public class Main {
-    public static SortedSet<File> filesSet = new TreeSet<>(Comparator.comparingLong(File::length));
+    private static SortedSet<File> filesSet = new TreeSet<>(Comparator.comparingLong(File::length));
+    public static final int LARGEST_FILES = 5;
+    public static final DecimalFormat percentageFormat = new DecimalFormat("###.000%");
+
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
-        String dir_path = args[0];
-        System.out.println("Path: " + dir_path);
+        String dirPath = args[0];
+        System.out.println("Path: " + dirPath);
 
-        File dir = new File(dir_path);
+        File dir = new File(dirPath);
         if (Files.isSymbolicLink(dir.toPath())) {
             System.out.println("Symbolic link: " + dir.getAbsolutePath() + ", size: " + dir.length());
             return;
@@ -28,15 +36,16 @@ public class Main {
         for (FileInfo elem: fileInfos) {
             cnt++;
             System.out.printf("Item %3d: ", cnt);
-            double part = elem.size / (1.0 * size) * 100;
+            double part = elem.getSize() / (1.0 * size);
+            String partStr = percentageFormat.format(part);
             // assert(part <= 100)
-            if (elem.file.isDirectory()) {
-                String longName = String.format(String.format("%%%ds", dirNameLen), elem.file.getName());
-                System.out.printf("folder %s, %9d items, %12d size, %.4f%% part\n",
-                        longName, elem.itemsCnt, elem.size, part);
+            if (elem.getFile().isDirectory()) {
+                String longName = String.format(String.format("%%%ds", dirNameLen), elem.getFile().getName());
+                System.out.printf("folder %s, %9d items, %12d size, %7s part\n",
+                        longName, elem.getItemsCnt(), elem.getSize(), partStr);
             } else {
-                String longName = String.format(String.format("%%%ds", dirNameLen + 2), elem.file.getName());
-                System.out.printf("file %s, %29d size, %.4f%% part\n", longName, elem.size, part);
+                String longName = String.format(String.format("%%%ds", dirNameLen + 2), elem.getFile().getName());
+                System.out.printf("file %s, %29d size, %7s part\n", longName, elem.getSize(), partStr);
             }
         }
 
@@ -87,7 +96,7 @@ public class Main {
                     curNumber += getFilesNumber(elem);
                 } else if (elem.isFile()) {
                     filesSet.add(elem);
-                    if (filesSet.size() > 5) {
+                    if (filesSet.size() > LARGEST_FILES) {
                         filesSet.remove(filesSet.first());
                     }
                 }
@@ -115,13 +124,25 @@ public class Main {
 }
 
 class FileInfo implements Comparable<FileInfo> {
-    public File file;
-    public long itemsCnt, size;
+    private File file;
+    private long itemsCnt, size;
 
-    public FileInfo(File file, long itemsCnt, long size) {
-        this.file = file;
-        this.itemsCnt = itemsCnt;
-        this.size = size;
+    FileInfo(File myFile, long myItemsCnt, long mySize) {
+        this.file = myFile;
+        this.itemsCnt = myItemsCnt;
+        this.size = mySize;
+    }
+
+    public File getFile() {
+        return this.file;
+    }
+
+    public long getItemsCnt() {
+        return this.itemsCnt;
+    }
+
+    public long getSize() {
+        return this.size;
     }
 
     @Override
