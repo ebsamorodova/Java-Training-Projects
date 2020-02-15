@@ -11,7 +11,7 @@ import java.util.Collections;
 public class Main {
     private static SortedSet<File> filesSet = new TreeSet<>(Comparator.comparingLong(File::length));
     public static final int LARGEST_FILES = 5;
-    public static final DecimalFormat percentageFormat = new DecimalFormat("###.000%");
+    public static final DecimalFormat PERCENTAGE_FORMAT = new DecimalFormat("###.000%");
 
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
@@ -26,7 +26,6 @@ public class Main {
             System.out.println("File: " + dir.getAbsolutePath() + ", size: " + dir.length());
             return;
         }
-        // assert(dir.isDirectory())
 
         long dirNameLen = getMaxDirNameLength(dir), size = getDirSize(dir), filesNumber = getFilesNumber(dir);
         System.out.println("Head folder: " + dir.getAbsolutePath() + ", " +  filesNumber + " items, size: " + size);
@@ -37,8 +36,7 @@ public class Main {
             cnt++;
             System.out.printf("Item %3d: ", cnt);
             double part = elem.getSize() / (1.0 * size);
-            String partStr = percentageFormat.format(part);
-            // assert(part <= 100)
+            String partStr = PERCENTAGE_FORMAT.format(part);
             if (elem.getFile().isDirectory()) {
                 String longName = String.format(String.format("%%%ds", dirNameLen), elem.getFile().getName());
                 System.out.printf("folder %s, %9d items, %12d size, %7s part\n",
