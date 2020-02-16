@@ -27,7 +27,8 @@ public class Main {
             return;
         }
 
-        long dirNameLen = getMaxDirNameLength(dir), size = getDirSize(dir), filesNumber = getFilesNumber(dir);
+        long dirNameLen = getMaxDirNameLength(dir);
+        long size = getDirSize(dir).getFileSize(), filesNumber = getDirSize(dir).getElemCount();
         System.out.println("Head folder: " + dir.getAbsolutePath() + ", " +  filesNumber + " items, size: " + size);
         ArrayList<FileInfo> fileInfos = getItemsSize(dir);
         Collections.sort(fileInfos, Collections.reverseOrder());
@@ -55,7 +56,7 @@ public class Main {
 
         for (File elem: filesSet) {
             String longName = String.format(String.format("%%%ds", fileNameLen), elem.getName());
-            System.out.printf("%s, size: %9d, path: %s\n", longName, elem.length(), elem.getAbsolutePath());
+            System.out.printf("%s, size: %11d, path: %s\n", longName, elem.length(), elem.getAbsolutePath());
         }
 
         long time = System.currentTimeMillis() - startTime;
@@ -72,26 +73,16 @@ public class Main {
         return maxLen;
     }
 
-    public static long getDirSize(File dir) {
-        long curSize = 0;
+    public static MyPair getDirSize(File dir) {
+        long curSize = 0, curFiles = 0;
         for (File elem: dir.listFiles()) {
             if (!Files.isSymbolicLink(elem.toPath())) {
                 curSize += elem.length();
+                curFiles++;
                 if (elem.isDirectory()) {
-                    curSize += getDirSize(elem);
-                }
-            }
-        }
-        return curSize;
-    }
-
-    public static long getFilesNumber(File dir) {
-        long curNumber = 0;
-        for (File elem: dir.listFiles()) {
-            if (!Files.isSymbolicLink(elem.toPath())) {
-                curNumber += 1;
-                if (elem.isDirectory()) {
-                    curNumber += getFilesNumber(elem);
+                    MyPair elemSize = getDirSize(elem);
+                    curSize += elemSize.getFileSize();
+                    curFiles += elemSize.getElemCount();
                 } else if (elem.isFile()) {
                     filesSet.add(elem);
                     if (filesSet.size() > LARGEST_FILES) {
@@ -100,15 +91,16 @@ public class Main {
                 }
             }
         }
-        return curNumber;
+        return new MyPair(curSize, curFiles);
     }
+
 
     public static ArrayList<FileInfo> getItemsSize(File dir) {
         ArrayList<FileInfo> filesArray = new ArrayList<>();
         for (File elem: dir.listFiles()) {
             if (!Files.isSymbolicLink(elem.toPath())) {
                 if (elem.isDirectory()) {
-                    long size = getDirSize(elem), filesNumber = getFilesNumber(elem);
+                    long size = getDirSize(elem).getFileSize(), filesNumber = getDirSize(elem).getElemCount();
                     FileInfo curFile = new FileInfo(elem, filesNumber, size);
                     filesArray.add(curFile);
                 } else if (elem.isFile()) {
@@ -146,5 +138,22 @@ class FileInfo implements Comparable<FileInfo> {
     @Override
     public int compareTo(FileInfo other) {
         return Long.compare(this.size, other.size);
+    }
+}
+
+class MyPair {
+    private long fileSize, elemCount;
+
+    MyPair(long size, long elem) {
+        this.fileSize = size;
+        this.elemCount = elem;
+    }
+
+    public long getFileSize() {
+        return this.fileSize;
+    }
+
+    public long getElemCount() {
+        return this.elemCount;
     }
 }
