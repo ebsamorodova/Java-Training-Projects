@@ -11,7 +11,7 @@ enum Eviction { LRU, LFU };
 
 class MyCache implements CacheInterface {
     private HashMap<Long, List.Node<Elem>> myMap = new HashMap<>(); // long -> Node<Elem>
-    private HashMap<List.Node<Elem>, List.Node<List<Elem>>> listMap = new HashMap<>(); // Elem -> Node<List>
+    private HashMap<Long, List.Node<List<Elem>>> listMap = new HashMap<>(); // Elem.id -> Node<List>
     private List<List<Elem>> myList = new List<>();
     private Eviction eviction;
     private int maxMemory;
@@ -46,7 +46,7 @@ class MyCache implements CacheInterface {
                 List.Node<Elem> footElem = footList.value.foot;
                 curSize -= elemSize(footElem.value);
                 footList.value.extract(footElem); // достаем последний
-                listMap.remove(footElem);
+                listMap.remove(footElem.value.id);
                 if (footList.value.head == null) { // хвост кончился
                     myList.extract(footList);
                 }
@@ -65,23 +65,23 @@ class MyCache implements CacheInterface {
 
                 List.Node<List<Elem>> newFootNode = new List.Node<>(newFootList);
                 myList.pushBack(newFootNode);
-                listMap.put(curNode, newFootNode);
+                listMap.put(id, newFootNode);
             } else { // можно добавить в начало хвоста
                 footNode.value.pushFront(curNode);
-                listMap.put(curNode, footNode);
+                listMap.put(id, footNode);
             }
             curSize += size;
         } else { // такой узел уже где-то есть
-            List.Node<Elem> oldNode = myMap.get(curElem.id);
+            List.Node<Elem> oldNode = myMap.get(id);
             System.out.println("уже где-то есть: " + oldNode.value.str);
-            List.Node<List<Elem>> oldList = listMap.get(oldNode);
+            List.Node<List<Elem>> oldList = listMap.get(id);
             System.out.println(oldList == null); // TRUE
             oldList.value.extract(oldNode); // удаляем старый вариант
             myMap.put(id, curNode);
 
 
             if (eviction == Eviction.LFU) { // нужно переткнуть в следующий список
-                listMap.remove(oldNode);
+                listMap.remove(id);
                 int needFrequency = oldList.value.frequency + 1;
                 List.Node<List<Elem>> nextList = oldList.right;
 
@@ -92,10 +92,10 @@ class MyCache implements CacheInterface {
 
                     List.Node<List<Elem>> newNextNode = new List.Node<>(newNextList);
                     myList.pushAfter(oldList, newNextNode);
-                    listMap.put(curNode, newNextNode);
+                    listMap.put(id, newNextNode);
                 } else {
                     nextList.value.pushFront(curNode);
-                    listMap.put(curNode, nextList);
+                    listMap.put(id, nextList);
                 }
                 if (oldList.value.head == null) { // если элементы в нем кончились
                     myList.extract(oldList);
