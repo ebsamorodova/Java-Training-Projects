@@ -36,10 +36,10 @@ class MyCache implements CacheInterface {
     }
 
     public void put(Long id, String str) {
-        Elem curElem = new Elem(str, id);
+        Elem curElem = new Elem(id, str);
         List.Node<Elem> curNode = new List.Node<>(curElem);
 
-        if (myMap.get(id) == null) { // new elem
+        if (myMap.get(id) == null) { // новый элемент
             int size = elemSize(curElem);
             while (curSize + size > maxMemory) { // пока не хватает памяти
                 List.Node<List<Elem>> footList = myList.foot;
@@ -57,6 +57,7 @@ class MyCache implements CacheInterface {
             myMap.put(id, curNode); // long -> Node<curElem>
             List.Node<List<Elem>> footNode = myList.foot;
             if (footNode == null || footNode.value.frequency > START_FREQUENCY) { // не тот хвост
+                System.out.println(str + " в не том хвосте");
                 // сделаем новый хвост с частотой = 1
                 List<Elem> newFootList = new List<>();
                 newFootList.frequency = START_FREQUENCY;
@@ -72,8 +73,12 @@ class MyCache implements CacheInterface {
             curSize += size;
         } else { // такой узел уже где-то есть
             List.Node<Elem> oldNode = myMap.get(curElem.id);
+            System.out.println("уже где-то есть: " + oldNode.value.str);
             List.Node<List<Elem>> oldList = listMap.get(oldNode);
+            System.out.println(oldList == null); // TRUE
             oldList.value.extract(oldNode); // удаляем старый вариант
+            myMap.put(id, curNode);
+
 
             if (eviction == Eviction.LFU) { // нужно переткнуть в следующий список
                 listMap.remove(oldNode);
@@ -106,6 +111,7 @@ class MyCache implements CacheInterface {
         List.Node<Elem> needElem = myMap.get(id);
         if (needElem == null) { return null; } // no such string
         String needStr = needElem.value.str;
+        System.out.println("cur ans: " + needStr);
         put(id, needStr);
         return needStr;
     }
@@ -114,7 +120,7 @@ class MyCache implements CacheInterface {
         String str;
         long id;
 
-        public Elem(String myStr, long myId) {
+        public Elem(long myId, String myStr) {
             str = myStr;
             id = myId;
         }

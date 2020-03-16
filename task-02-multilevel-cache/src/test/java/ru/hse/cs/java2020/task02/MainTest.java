@@ -11,4 +11,13 @@ public class MainTest {
         assertTrue(true);
     }
 
+    @Test
+    public void getStringAfterUpdate() {
+        MyCache cache = new MyCache(1024, 0, Eviction.LRU);
+        cache.put(1L, "aaa");
+        cache.put(1L, "ccc");
+        String ans = cache.get(1L);
+        assert(ans.equals("ccc"));
+    }
+
 }
