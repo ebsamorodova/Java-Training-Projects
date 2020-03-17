@@ -31,6 +31,10 @@ class MyCache implements CacheInterface {
         this.eviction = eviction;
     }
 
+    public int getCurSize() {
+        return curSize;
+    }
+
     public int elemSize(Elem elem) {
         return elem.str.length() * CHAR_SIZE + ELEM_SIZE;
     }
@@ -44,10 +48,12 @@ class MyCache implements CacheInterface {
             while (curSize + size > maxMemory) { // пока не хватает памяти
                 List.Node<List<Elem>> footList = myList.foot;
                 List.Node<Elem> footElem = footList.value.foot;
+//                System.out.println("removing id " + footElem.value.id);
                 curSize -= elemSize(footElem.value);
                 footList.value.extract(footElem); // достаем последний
                 listMap.remove(footElem.value.id);
                 if (footList.value.head == null) { // хвост кончился
+//                    System.out.println("хвост кончился");
                     myList.extract(footList);
                 }
                 myMap.remove(footElem.value.id);
@@ -57,7 +63,7 @@ class MyCache implements CacheInterface {
             myMap.put(id, curNode); // long -> Node<curElem>
             List.Node<List<Elem>> footNode = myList.foot;
             if (footNode == null || footNode.value.frequency > START_FREQUENCY) { // не тот хвост
-                System.out.println(str + " в не том хвосте");
+//                System.out.println(str + " в не том хвосте");
                 // сделаем новый хвост с частотой = 1
                 List<Elem> newFootList = new List<>();
                 newFootList.frequency = START_FREQUENCY;
@@ -73,12 +79,9 @@ class MyCache implements CacheInterface {
             curSize += size;
         } else { // такой узел уже где-то есть
             List.Node<Elem> oldNode = myMap.get(id);
-            System.out.println("уже где-то есть: " + oldNode.value.str);
             List.Node<List<Elem>> oldList = listMap.get(id);
-            System.out.println(oldList == null); // TRUE
             oldList.value.extract(oldNode); // удаляем старый вариант
             myMap.put(id, curNode);
-
 
             if (eviction == Eviction.LFU) { // нужно переткнуть в следующий список
                 listMap.remove(id);
@@ -107,11 +110,24 @@ class MyCache implements CacheInterface {
         }
     }
 
+    public void printList() {
+        List.Node<List<Elem>> curHead = myList.foot;
+        while (curHead != null) {
+//            System.out.println("freq: " + curHead.value.frequency);
+            List.Node<Elem> curElem = curHead.value.head;
+            while (curElem != null) {
+                System.out.println(curElem.value.id + " " + curElem.value.str);
+                curElem = curElem.left;
+            }
+            curHead = curHead.right;
+        }
+
+    }
+
     public String get(Long id) {
         List.Node<Elem> needElem = myMap.get(id);
         if (needElem == null) { return null; } // no such string
         String needStr = needElem.value.str;
-        System.out.println("cur ans: " + needStr);
         put(id, needStr);
         return needStr;
     }
@@ -148,15 +164,15 @@ class MyCache implements CacheInterface {
                 head = elem;
                 foot = elem;
             } else {
-                elem.right = head;
-                head.left = elem;
+                elem.left = head;
+                head.right = elem;
                 head = elem;
             }
         }
 
         public void pushAfter(Node<T> elem, Node<T> toPush) {
             Node<T> curRight = elem.right;
-            if (curRight == null) {
+            if (curRight == null) { // мы в голове
                 pushFront(toPush);
             } else {
                 elem.right = toPush;
@@ -171,8 +187,8 @@ class MyCache implements CacheInterface {
                 head = elem;
                 foot = elem;
             } else {
-                elem.left = foot;
-                foot.right = elem;
+                elem.right = foot;
+                foot.left = elem;
                 foot = elem;
             }
         }
@@ -185,12 +201,12 @@ class MyCache implements CacheInterface {
             if (curLeft == null && curRight == null) { // extract head = foot
                 head = null;
                 foot = null;
-            } else if (curLeft == null) { // extract head
+            } else if (curLeft == null) { // extract foot
                 curRight.left = null;
-                head = curRight;
-            } else if (curRight == null)  { // extract foot
+                foot = curRight;
+            } else if (curRight == null)  { // extract head
                 curLeft.right = null;
-                foot = curLeft;
+                head = curLeft;
             } else {
                 curLeft.right = curRight;
                 curRight.left = curLeft;
