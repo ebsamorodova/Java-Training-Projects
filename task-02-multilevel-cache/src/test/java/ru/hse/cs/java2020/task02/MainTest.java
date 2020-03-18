@@ -8,14 +8,14 @@ import static org.junit.Assert.*;
 public class MainTest {
     @Test
     public void testPutGet() {
-        MyCache cache = new MyCache(1024, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        CacheImpl cache = new CacheImpl(1024, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
         cache.put(179L, "bbb");
         Assert.assertEquals(cache.get(179L), "bbb");
     }
 
     @Test
     public void testReadFromDisk() {
-        MyCache cache = new MyCache(19, 100, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        CacheImpl cache = new CacheImpl(19, 100, "/home/kate/hse/Java", EvictionPolicy.LRU);
         cache.put(179L, "b");
         cache.put(178L, "d");
         Assert.assertEquals(cache.get(179L), "b");
@@ -23,7 +23,7 @@ public class MainTest {
 
     @Test
     public void getStringAfterUpdate() {
-        MyCache cache = new MyCache(1024, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        CacheImpl cache = new CacheImpl(1024, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
         cache.put(1L, "aaa");
         cache.put(1L, "bbb");
         cache.put(1L, "ccc");
@@ -34,7 +34,7 @@ public class MainTest {
 
     @Test
     public void getAfterRemove() {
-        MyCache cache = new MyCache(33, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        CacheImpl cache = new CacheImpl(33, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
         cache.put(1L, "a");
         cache.put(1L, "b");
         cache.put(1L, "c");
@@ -47,7 +47,7 @@ public class MainTest {
 
     @Test
     public void testLFU() {
-        MyCache cache = new MyCache(45, 0, "/home/kate/hse/Java", EvictionPolicy.LFU);
+        CacheImpl cache = new CacheImpl(45, 0, "/home/kate/hse/Java", EvictionPolicy.LFU);
         cache.put(1L, "a");
         cache.put(1L, "b");
         cache.put(1L, "c");
@@ -64,19 +64,19 @@ public class MainTest {
 
     @Test
     public void creatingList() {
-        MyCache.Elem a = new MyCache.Elem(1L, "a");
-        MyCache.List.Node<MyCache.Elem> a_n = new MyCache.List.Node<>(a);
-        MyCache.Elem b = new MyCache.Elem(2L, "b");
-        MyCache.List.Node<MyCache.Elem> b_n = new MyCache.List.Node<>(b);
-        MyCache.Elem c = new MyCache.Elem(3L, "c");
-        MyCache.List.Node<MyCache.Elem> c_n = new MyCache.List.Node<>(c);
+        CacheImpl.Elem a = new CacheImpl.Elem(1L, "a");
+        CacheImpl.List.Node<CacheImpl.Elem> a_n = new CacheImpl.List.Node<>(a);
+        CacheImpl.Elem b = new CacheImpl.Elem(2L, "b");
+        CacheImpl.List.Node<CacheImpl.Elem> b_n = new CacheImpl.List.Node<>(b);
+        CacheImpl.Elem c = new CacheImpl.Elem(3L, "c");
+        CacheImpl.List.Node<CacheImpl.Elem> c_n = new CacheImpl.List.Node<>(c);
 
-        MyCache.List<MyCache.Elem> list = new MyCache.List<>();
+        CacheImpl.List<CacheImpl.Elem> list = new CacheImpl.List<>();
         list.pushFront(a_n);
         list.pushFront(b_n);
         list.pushFront(c_n);
 
-        MyCache.List.Node<MyCache.Elem> cur = list.foot;
+        CacheImpl.List.Node<CacheImpl.Elem> cur = list.foot;
         int cnt = 0;
         while (cur != null) {
             cur = cur.right;

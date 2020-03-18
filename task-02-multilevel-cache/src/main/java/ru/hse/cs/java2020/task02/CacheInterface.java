@@ -10,40 +10,40 @@ public interface CacheInterface {
     String get(Long id);
 }
 
-enum EvictionPolicy { LRU, LFU };
+enum EvictionPolicy { LRU, LFU }
 
-class MyCache implements CacheInterface {
+class CacheImpl implements CacheInterface {
     private HashMap<Long, List.Node<Elem>> myMap = new HashMap<>(); // long -> Node<Elem>
     private HashMap<Long, List.Node<List<Elem>>> listMap = new HashMap<>(); // Elem.id -> Node<List>
     private HashMap<Long, Integer> fileMap = new HashMap<>(); // Elem.id -> file shift
     private List<List<Elem>> myList = new List<>();
     private RandomAccessFile myFile;
-    private EvictionPolicy policy;
+    private EvictionPolicy evictionPolicy;
     private String cachePath;
     private int maxMemory;
     private int maxDisk;
     private int curMemory = 0;
     private int curDisk = 0;
 
-    final int CHAR_SIZE = 2;
-    final int ELEM_SIZE = 16;
-    final int START_FREQUENCY = 1;
+    final int charSize = 2;
+    final int elemSize = 16;
+    final int startFrequency = 1;
 
-    public MyCache(int memory, int disk, String path, EvictionPolicy policy) {
+    CacheImpl(int memory, int disk, String path, EvictionPolicy policy) {
         maxMemory = memory;
         maxDisk = disk;
         cachePath = path;
         try {
             String filePath = path + "/my_cache.txt";
             myFile = new RandomAccessFile(filePath, "rw");
-        } catch(IOException e) {
+        } catch (IOException e) {
             System.err.println("File creating error: " + e.getMessage());
         }
-        this.policy = policy;
+        this.evictionPolicy = policy;
     }
 
     public int elemSize(Elem elem) {
-        return elem.str.length() * CHAR_SIZE + ELEM_SIZE;
+        return elem.str.length() * charSize + elemSize;
     }
 
     public void writeToFile(Elem elem) {
@@ -56,7 +56,7 @@ class MyCache implements CacheInterface {
             myFile.write(array, 0, elem.str.length());
             curDisk += elemSize(elem);
             myFile.seek(curDisk);
-        } catch(IOException e) {
+        } catch (IOException e) {
             System.err.println("Write to file error: " + e.getMessage());
         }
     }
@@ -82,10 +82,10 @@ class MyCache implements CacheInterface {
             // здесь уже достаточно памяти на добавление нового узла
             myMap.put(id, curNode); // long -> Node<curElem>
             List.Node<List<Elem>> footNode = myList.foot;
-            if (footNode == null || footNode.value.frequency > START_FREQUENCY) { // не тот хвост
+            if (footNode == null || footNode.value.frequency > startFrequency) { // не тот хвост
                 // сделаем новый хвост с частотой = 1
                 List<Elem> newFootList = new List<>();
-                newFootList.frequency = START_FREQUENCY;
+                newFootList.frequency = startFrequency;
                 newFootList.pushFront(curNode);
 
                 List.Node<List<Elem>> newFootNode = new List.Node<>(newFootList);
@@ -106,7 +106,7 @@ class MyCache implements CacheInterface {
             oldList.value.extract(oldNode); // удаляем старый вариант
             myMap.put(id, curNode);
 
-            if (policy == EvictionPolicy.LFU) { // нужно переткнуть в следующий список
+            if (evictionPolicy == EvictionPolicy.LFU) { // нужно переткнуть в следующий список
                 listMap.remove(id);
                 int needFrequency = oldList.value.frequency + 1;
                 List.Node<List<Elem>> nextList = oldList.right;
@@ -167,7 +167,9 @@ class MyCache implements CacheInterface {
 
     public String getFromDisk(Long id) {
         Integer index = fileMap.get(id);
-        if (index == null) { return null; }
+        if (index == null) {
+            return null;
+        }
         try {
             myFile.seek(index);
             myFile.readLong();
@@ -176,7 +178,7 @@ class MyCache implements CacheInterface {
             myFile.read(array, 0, len);
             myFile.seek(curDisk);
             return new String(array, StandardCharsets.UTF_8);
-        } catch(IOException e) {
+        } catch (IOException e) {
             System.err.println("Reading from disk error: " + e.getMessage());
         }
         return null;
@@ -196,7 +198,7 @@ class MyCache implements CacheInterface {
         String str;
         long id;
 
-        public Elem(long myId, String myStr) {
+        Elem(long myId, String myStr) {
             str = myStr;
             id = myId;
         }
@@ -208,7 +210,7 @@ class MyCache implements CacheInterface {
             Node<T> right;
             T value;
 
-            public Node(T myValue) {
+            Node(T myValue) {
                 left = null;
                 right = null;
                 value = myValue;
@@ -270,6 +272,5 @@ class MyCache implements CacheInterface {
                 curRight.left = curLeft;
             }
         }
-
     }
 }
