@@ -6,23 +6,24 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class MainTest {
-
     @Test
-    public void testTrueIsTrue() {
-        assertTrue(true);
+    public void testPutGet() {
+        MyCache cache = new MyCache(1024, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        cache.put(179L, "bbb");
+        Assert.assertEquals(cache.get(179L), "bbb");
     }
 
     @Test
-    public void testPutGet() {
-        MyCache cache = new MyCache(1024, 0, Eviction.LRU);
-        cache.put(179L, "bbb");
-        Assert.assertEquals(cache.get(179L), "bbb");
-
+    public void testReadFromDisk() {
+        MyCache cache = new MyCache(19, 100, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        cache.put(179L, "b");
+        cache.put(178L, "d");
+        Assert.assertEquals(cache.get(179L), "b");
     }
 
     @Test
     public void getStringAfterUpdate() {
-        MyCache cache = new MyCache(1024, 0, Eviction.LRU);
+        MyCache cache = new MyCache(1024, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
         cache.put(1L, "aaa");
         cache.put(1L, "bbb");
         cache.put(1L, "ccc");
@@ -33,7 +34,7 @@ public class MainTest {
 
     @Test
     public void getAfterRemove() {
-        MyCache cache = new MyCache(33, 0, Eviction.LRU);
+        MyCache cache = new MyCache(33, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
         cache.put(1L, "a");
         cache.put(1L, "b");
         cache.put(1L, "c");
@@ -46,7 +47,7 @@ public class MainTest {
 
     @Test
     public void testLFU() {
-        MyCache cache = new MyCache(45, 0, Eviction.LFU);
+        MyCache cache = new MyCache(45, 0, "/home/kate/hse/Java", EvictionPolicy.LFU);
         cache.put(1L, "a");
         cache.put(1L, "b");
         cache.put(1L, "c");
