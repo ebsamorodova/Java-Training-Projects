@@ -25,9 +25,9 @@ class CacheImpl implements CacheInterface {
     private int curMemory = 0;
     private int curDisk = 0;
 
-    final int charSize = 2;
-    final int elemSize = 16;
-    final int startFrequency = 1;
+    private final int charSize = 2;
+    private final int elemSize = 16;
+    private final int startFrequency = 1;
 
     CacheImpl(int memory, int disk, String path, EvictionPolicy policy) {
         maxMemory = memory;
@@ -195,8 +195,8 @@ class CacheImpl implements CacheInterface {
     }
 
     static class Elem {
-        String str;
-        long id;
+        private String str;
+        private long id;
 
         Elem(long myId, String myStr) {
             str = myStr;
@@ -206,9 +206,9 @@ class CacheImpl implements CacheInterface {
 
     static class List<T> {
         static class Node<T> {
-            Node<T> left;
-            Node<T> right;
-            T value;
+            private Node<T> left;
+            private Node<T> right;
+            private T value;
 
             Node(T myValue) {
                 left = null;
@@ -217,9 +217,9 @@ class CacheImpl implements CacheInterface {
             }
         }
 
-        Node<T> head;
-        Node<T> foot;
-        int frequency;
+        private Node<T> head;
+        private Node<T> foot;
+        private int frequency;
 
         public void pushFront(Node<T> elem) {
             if (head == null) {
