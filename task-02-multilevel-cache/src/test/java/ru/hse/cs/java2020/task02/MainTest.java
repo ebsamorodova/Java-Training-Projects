@@ -8,14 +8,14 @@ import static org.junit.Assert.*;
 public class MainTest {
     @Test
     public void testPutGet() {
-        CacheImpl cache = new CacheImpl(1024, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        CacheImpl cache = new CacheImpl(1024, 0, System.getProperty("java.io.tmpdir"), EvictionPolicy.LRU);
         cache.put(179L, "bbb");
         Assert.assertEquals(cache.get(179L), "bbb");
     }
 
     @Test
     public void testFixed() {
-        CacheImpl cache = new CacheImpl(18, 100, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        CacheImpl cache = new CacheImpl(18, 100, System.getProperty("java.io.tmpdir"), EvictionPolicy.LRU);
         cache.put(179L, "b");
         cache.put(178L, "d");
         cache.put(178L, "dasdad");
@@ -25,7 +25,7 @@ public class MainTest {
 
     @Test
     public void testReadFromDisk() {
-        CacheImpl cache = new CacheImpl(19, 100, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        CacheImpl cache = new CacheImpl(19, 100, System.getProperty("java.io.tmpdir"), EvictionPolicy.LRU);
         cache.put(179L, "b");
         cache.put(178L, "d");
         Assert.assertEquals(cache.get(179L), "b");
@@ -33,7 +33,7 @@ public class MainTest {
 
     @Test
     public void getStringAfterUpdate() {
-        CacheImpl cache = new CacheImpl(1024, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        CacheImpl cache = new CacheImpl(1024, 0, System.getProperty("java.io.tmpdir"), EvictionPolicy.LRU);
         cache.put(1L, "aaa");
         cache.put(1L, "bbb");
         cache.put(1L, "ccc");
@@ -44,7 +44,7 @@ public class MainTest {
 
     @Test
     public void getAfterRemove() {
-        CacheImpl cache = new CacheImpl(25, 0, "/home/kate/hse/Java", EvictionPolicy.LRU);
+        CacheImpl cache = new CacheImpl(25, 0, System.getProperty("java.io.tmpdir"), EvictionPolicy.LRU);
         cache.put(1L, "a");
         cache.put(1L, "b");
         cache.put(1L, "c");
@@ -57,7 +57,7 @@ public class MainTest {
 
     @Test
     public void testLFU() {
-        CacheImpl cache = new CacheImpl(33, 0, "/home/kate/hse/Java", EvictionPolicy.LFU);
+        CacheImpl cache = new CacheImpl(33, 0, System.getProperty("java.io.tmpdir"), EvictionPolicy.LFU);
         cache.put(1L, "a");
         cache.put(1L, "b");
         cache.put(1L, "c");
