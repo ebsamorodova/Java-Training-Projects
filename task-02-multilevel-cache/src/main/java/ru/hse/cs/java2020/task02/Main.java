@@ -1,8 +1,18 @@
 package ru.hse.cs.java2020.task02;
 
+
+import java.nio.file.Files;
+
 public class Main {
     public static void main(String[] args) {
-        CacheImpl cache = new CacheImpl(18, 100, System.getProperty("java.io.tmpdir"), EvictionPolicy.LRU);
+        String path;
+        try {
+            path = Files.createTempDirectory(null).toString();
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+            return;
+        }
+        CacheImpl cache = new CacheImpl(18, 100, path, EvictionPolicy.LRU);
         cache.put(179L, "b");
         cache.put(178L, "d");
         cache.put(178L, "dasdad");
