@@ -3,4 +3,7 @@ version '1.0'
 mainClassName = 'ru.hse.cs.java2020.task03.Main'
 
 dependencies {
+    compile group: 'org.telegram', name: 'telegrambots', version: '4.8.1'
+    implementation group: 'org.mapdb', name: 'mapdb', version: '3.0.4'
+    runtimeOnly 'ch.qos.logback:logback-classic:1.2.3'
 }
