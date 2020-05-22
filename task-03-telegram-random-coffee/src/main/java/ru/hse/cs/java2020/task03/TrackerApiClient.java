@@ -2,6 +2,7 @@ package ru.hse.cs.java2020.task03;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -35,7 +36,7 @@ public class TrackerApiClient implements TrackerApiInterface {
     }
 
     private HttpResponse<String> postResponse(String uri, String oauthToken, String orgId, String requestBody, int ok)  throws TrackerApiError {
-        System.out.println("request uri: " + uri + "\nrequest body: " + requestBody);
+        System.err.println("request uri: " + uri + "\nrequest body: " + requestBody);
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest requestCreatingIssue = HttpRequest.newBuilder()
                 .uri(URI.create(uri))
@@ -49,7 +50,7 @@ public class TrackerApiClient implements TrackerApiInterface {
         try {
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != ok) {
-                System.out.println("response error: " + response.body());
+                System.err.println("response error: " + response.body());
                 JSONObject obj = new JSONObject(response.body());
                 String errorMessages = obj.getJSONArray("errorMessages").toString();
                 throw new TrackerApiError(errorMessages);
@@ -60,7 +61,8 @@ public class TrackerApiClient implements TrackerApiInterface {
         }
     }
 
-    private String getUserUid(String oauthToken, String orgId) throws TrackerApiError {
+    @Override
+    public String getUserUid(String oauthToken, String orgId) throws TrackerApiError {
         var responseMe = getResponse("https://api.tracker.yandex.net/v2/myself",
                 oauthToken, orgId);
         JSONObject obj = new JSONObject(responseMe.body());
@@ -69,13 +71,10 @@ public class TrackerApiClient implements TrackerApiInterface {
 
     @Override
     public IssueInfo getIssueInfo(String oauthToken, String orgId, String issueId) throws TrackerApiError {
-        System.out.println("searching " + oauthToken + ", " + orgId + ", " + issueId);
         var response = getResponse("https://api.tracker.yandex.net/v2/issues/" + issueId,
                 oauthToken, orgId);
-        System.out.println("first response: " + response.body());
         var responseComments = getResponse("https://api.tracker.yandex.net/v2/issues/" + issueId + "/comments?",
                 oauthToken, orgId);
-        System.out.println("second response: " + responseComments.body());
 
         // two OK responses!
         JSONObject obj = new JSONObject(response.body());
@@ -100,7 +99,6 @@ public class TrackerApiClient implements TrackerApiInterface {
         for (int i = 0; i < objComments.length(); i++) {
             issueComments.add(objComments.getJSONObject(i).getString("text"));
         }
-
         return new IssueInfo(issueId, issueName, issueDescription,
                 issueAuthor, issueExecutor, issueFollowers, issueComments);
     }
@@ -166,14 +164,7 @@ public class TrackerApiClient implements TrackerApiInterface {
         var requestBody = "{\"filter\": { \"assignee\" : \"" + userId + "\"}}";
         var uri = "https://api.tracker.yandex.net/v2/issues/_search?"
                 + "order=%2BupdatedAt&scrollType=sorted&perScroll=5";
-        var response = postResponse(uri, oauthToken, orgId, requestBody, httpCodeOk);
-        lastResponse = response;
-        JSONArray issues = new JSONArray(response.body());
-        ArrayList<String> myIssues = new ArrayList<>();
-        for (int i = 0; i < issues.length(); i++) {
-            myIssues.add(issues.getJSONObject(i).getString("key"));
-        }
-        return myIssues;
+        return getIssuesList(oauthToken, orgId, uri, requestBody);
     }
 
     @Override
@@ -188,6 +179,11 @@ public class TrackerApiClient implements TrackerApiInterface {
         var headerLink = lastResponse.headers().allValues("link").get(1); // ref="next"
         var nextPageLink = headerLink.substring(1, headerLink.length() - lastLinkLength);
         var requestBody = "{\"filter\": { \"assignee\" : \"" + userId + "\"}}";
+        return getIssuesList(oauthToken, orgId, nextPageLink, requestBody);
+    }
+
+    @NotNull
+    private List<String> getIssuesList(String oauthToken, String orgId, String nextPageLink, String requestBody) throws TrackerApiError {
         var response = postResponse(nextPageLink, oauthToken, orgId, requestBody, httpCodeOk);
         lastResponse = response;
         JSONArray issues = new JSONArray(response.body());

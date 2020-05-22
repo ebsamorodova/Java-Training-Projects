@@ -105,7 +105,7 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
 
     public String startBot() {
         return "Привет!\nДля начала работы с ботом, пожалуйста, "
-                + "авторизуйтесь с помощью комнады /get_token. "
+                + "авторизуйтесь с помощью команды /get_token. "
                 + "После этого введите полученный токен и id Вашей "
                 + "организации в формате /take_token token orgId.\n"
                 + "После этого Вы можете получить информацию по задаче "
@@ -182,7 +182,7 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
         var firstIndex = "/create_assign".length() + 1;
         var assignMe = message.substring(firstIndex);
         if (!assignMe.equals("false") && !assignMe.equals("true")) {
-            return oops("Unkown parameter value: \"" + assignMe + "\".");
+            return oops("Unknown parameter value: \"" + assignMe + "\".");
 
         }
         trackerClient.setCreateAssignMe(assignMe);
