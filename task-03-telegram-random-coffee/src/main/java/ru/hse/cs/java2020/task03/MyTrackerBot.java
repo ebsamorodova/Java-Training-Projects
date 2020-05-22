@@ -6,15 +6,13 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.Arrays;
+import java.util.List;
 
 public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseable {
-    private TrackerApiInterface trackerClient;// = new TrackerApiClient();
-    private UserInfoStorageInterface userInfoStorage;// = new MapDBUserInfoStorage();
-//    private HashMap<Long, String> users = new HashMap<>(); // chatId -> oauthToken
-    private final int TOKEN_MESSAGE_LEN = 2;
-    private final int MY_ISSUES_MESSAGE_LEN = 2;
-    private final int CREATE_ISSUE_MESSAGE_LEN = 6;
-    private final int FIND_ISSUE_MESSAGE_LEN = 3;
+    private TrackerApiInterface trackerClient;
+    private UserInfoStorageInterface userInfoStorage;
+    private final int tokenMessageLen = 3;
+    private final int findIssueMessageLen = 2;
 
     public MyTrackerBot(TrackerApiInterface trackerInterface,
                         UserInfoStorageInterface userInterface) {
@@ -25,33 +23,48 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
     @Override
     public void onUpdateReceived(Update update) {
         if (update.hasMessage() && update.getMessage().hasText()) {
-            var newText = update.getMessage().getText();
-            var chatId = update.getMessage().getChatId();
-            if (!userInfoStorage.containsUser(chatId)) {
-                userInfoStorage.setUserToken(chatId, "null");
+            var newMessageText = update.getMessage().getText();
+            long chatId = update.getMessage().getChatId();
+            switch (newMessageText) {
+                case "/start":
+                    sendMessage(startBot(), update);
+                    break;
+                case "/meow":
+                    sendMessage("meow", update);
+                    break;
+                case "/get_token":
+                    sendMessage(getUserInfo(), update);
+                    break;
+                case "/my_issues":
+                    sendMessage(getUserIssues(chatId), update);
+                    break;
+                case "/next_issues":
+                    sendMessage(getNextUserIssues(chatId), update);
+                    break;
+                case "/create_issue":
+                    sendMessage(startCreatingIssue(chatId), update);
+                    break;
+                case "/done":
+                    sendMessage(createNewIssue(chatId), update);
+                    break;
+                default:
+                    if (newMessageText.startsWith("/take_token")) {
+                        sendMessage(setUserInfo(newMessageText, chatId), update);
+                    } else if (newMessageText.startsWith("/issue")) { // получить описание задачи
+                        sendMessage(findIssue(newMessageText, chatId), update);
+                    } else if (newMessageText.startsWith("/create_summary")) {
+                        sendMessage(setCreateSummaryIssue(newMessageText, chatId), update);
+                    } else if (newMessageText.startsWith("/create_queue")) {
+                        sendMessage(setCreateQueueIssue(newMessageText, chatId), update);
+                    } else if (newMessageText.startsWith("/create_description")) {
+                        sendMessage(setCreateDescriptionIssue(newMessageText, chatId), update);
+                    } else if (newMessageText.startsWith("/create_assign")) {
+                        sendMessage(setCreateAssignMeIssue(newMessageText, chatId), update);
+                    } else {
+                        sendMessage("Неизвестный формат запроса, "
+                                + "пожалуйста, попробуйте ещё раз", update);
+                    }
             }
-            String messageText;
-            if (newText.equals("/start")) {
-                messageText = startBot();
-            } else if (newText.equals("/meow")) {
-                messageText = "meow";
-            } else if (newText.equals("/get_token")) {
-                messageText = getUserOauthToken();
-            } else if (newText.startsWith("/take_token")) {
-                messageText = setUserToken(newText, chatId);
-            } else if (newText.startsWith("/my_issues")) { // список назначенных задач
-                messageText = getUserIssues(newText, chatId);
-            } else if (newText.startsWith("/next_issues")) { // список назначенных задач
-                messageText = getNextUserIssues(newText, chatId);
-            } else if (newText.startsWith("/issue")) { // получить описание задачи
-                messageText = findIssue(newText, chatId);
-            } else if (newText.startsWith("/create")) { // создать новую задачу
-                messageText = createNewIssue(newText, chatId);
-            } else {
-                messageText = "Неизвестный запрос, пожалуйста," +
-                        "попробуйте ещё раз.";
-            }
-            sendMessage(messageText, update);
         }
     }
 
@@ -76,149 +89,170 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
         }
     }
 
-    public String WrongFormat() {
+    public String wrongFormat() {
         return "Ошибка! Неверный формат запроса.";
     }
 
-    public String Oops() {
-        return "В процессе обработки запроса что-то пошло не так.\n" +
-                "Пожалуйста, попробуйте ещё раз...";
+    public String oops(String errorMessage) {
+        return "В процессе обработки запроса что-то пошло не так:\n"
+                + errorMessage;
     }
 
-    public String GetTokenPlease() {
-        return "Пожалуйста, получите OAuth-токен с помощью " +
-                "команды /get_token.";
+    public String getTokenPlease() {
+        return "Пожалуйста, получите OAuth-токен с помощью "
+                + "команды /get_token.";
     }
 
     public String startBot() {
-        return "Привет!\nДля начала работы с ботом, пожалуйста, " +
-                "авторизуйтесь с помощью комнады /get_token. " +
-                "После этого введите полученный токен в формате " +
-                "/take_token token.\n" +
-                "После этого Вы можете получить информацию по задачу " +
-                "с помощью команды /issue orgId issueId или создать " +
-                "новую задачу /create orgId queueId summary description " +
-                "true/false. Если Вы хотите назначить себя исполнителем, " +
-                "введите в конце запроса true, иначе - false. Пример: " +
-                "\"/create 1234567 QUEUE test test true\". \n" +
-                "Для того, чтобы посмотреть задачи, назначенные на Вас, " +
-                "введите /my_issues orgId, ответом на запрос будет не более " +
-                "10 задач. Для просмотра следующих 10 задач введите " +
-                "/next_issues orgId.\n" +
-                "Для того, чтобы бот мяукнул, введите /meow.";
+        return "Привет!\nДля начала работы с ботом, пожалуйста, "
+                + "авторизуйтесь с помощью комнады /get_token. "
+                + "После этого введите полученный токен и id Вашей "
+                + "организации в формате /take_token token orgId.\n"
+                + "После этого Вы можете получить информацию по задаче "
+                + "с помощью команды /issue issueId или создать "
+                + "новую задачу /create_issue. Для того, чтобы посмотреть "
+                + "задачи, назначенные на Вас, введите /my_issues, "
+                + "ответом на запрос будет не более 10 задач. "
+                + "Для просмотра следующих 10 задач введите /next_issues."
+                + "\nДля того, чтобы бот мяукнул, введите /meow.";
     }
 
-    public String getUserOauthToken() { // пользователь идет и добывает токен
-        String userMessage = "Пожалуйста, перейдите по ссылке " +
-                "https://oauth.yandex.ru/authorize?response_type=token&client_id=08f9daa8e4d245f1aedd613d48d9885b\n" +
-                "После этого введите полученный токен в формате '/take_token token'.";
-        return userMessage;
+    public String getUserInfo() {
+        return "Пожалуйста, перейдите по ссылке "
+                + "https://oauth.yandex.ru/authorize?response_type=token"
+                + "&client_id=08f9daa8e4d245f1aedd613d48d9885b\n"
+                + "После этого введите полученный токен и id организации "
+                + "в формате /take_token token orgId.";
     }
 
-    public String setUserToken(String message, Long chatId) {
+    public String setUserInfo(String message, Long chatId) {
         var tmpArray = message.split(" ");
-        if (tmpArray.length != TOKEN_MESSAGE_LEN) {// /take_token token
-            return WrongFormat();
+        if (tmpArray.length != tokenMessageLen) {
+            return wrongFormat();
         }
-
         var oauthToken = tmpArray[1];
-        userInfoStorage.setUserToken(chatId, oauthToken);
-        return "Ваш OAuth токен успешно сохранён!";
+        var orgId = tmpArray[2];
+        userInfoStorage.setUserInfo(chatId, oauthToken, orgId);
+        return "Ваш OAuth и OrgId токен успешно сохранены!";
     }
 
-    public String createNewIssue(String message, Long chatId) {
+    public String startCreatingIssue(long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
+        return "Для создания задачи укажите название задачи в формате "
+                + "/create_summary summary.";
+    }
+
+    public String setCreateSummaryIssue(String message, Long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
+        var firstIndex = "/create_summary".length() + 1;
+        trackerClient.setCreateSummary(message.substring(firstIndex));
+        return "Название задачи установлено. Пожалуйста, укажите "
+                + "id очереди, в которой Вы хотите создать задачу: "
+                + "/create_queue queue_id.";
+    }
+
+    public String setCreateQueueIssue(String message, Long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
+        var firstIndex = "/create_queue".length() + 1;
+        trackerClient.setCreateQueue(message.substring(firstIndex));
+        return "Очередь задачи установлена. Пожалуйста, введите "
+                + "описание задачи: /create_description description.";
+    }
+
+    public String setCreateDescriptionIssue(String message, Long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
+        var firstIndex = "/create_description".length() + 1;
+        trackerClient.setCreateDescription(message.substring(firstIndex));
+        return "Описание задачи установлено. Пожалуйста, укажите, "
+                + "назначить ли Вас исполнителем задачи: "
+                + "/create_assign true или /create_assign false.";
+    }
+    public String setCreateAssignMeIssue(String message, Long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
+        var firstIndex = "/create_assign".length() + 1;
+        var assignMe = message.substring(firstIndex);
+        if (!assignMe.equals("false") && !assignMe.equals("true")) {
+            return oops("Unkown parameter value: \"" + assignMe + "\".");
+
+        }
+        trackerClient.setCreateAssignMe(assignMe);
+        return "Все параметры задачи установлены. Пожалуйста, "
+                + "введите /done для завершения создания задачи.";
+    }
+
+    public String createNewIssue(Long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
         var oauthToken = userInfoStorage.getUserToken(chatId);
-        if (oauthToken.equals("null")) {
-            return GetTokenPlease();
+        var orgId = userInfoStorage.getUserOrgId(chatId);
+        try {
+            String createdIssue = trackerClient.createNewIssue(oauthToken, orgId);
+            return "Новая задача успешно создана: " + createdIssue;
+        } catch (TrackerApiError trackerApiError) {
+            return oops(trackerApiError.getMessage());
         }
-
-        var tmpArray = message.split(" ");
-        if (tmpArray.length != CREATE_ISSUE_MESSAGE_LEN) { // /create orgid queueid summary description true/false
-            return WrongFormat();
-        }
-
-        var orgId = tmpArray[1];
-        var queueIssue = tmpArray[2];
-        var summaryIssue = tmpArray[3];
-        var descriptionIssue = tmpArray[4];
-        var assignMe = tmpArray[5];
-        if (!assignMe.equals("true") && !assignMe.equals("false")) {
-            return WrongFormat();
-        }
-        var assignMeIssue = assignMe.equals("true");
-        var createdIssue = trackerClient.createNewIssue(oauthToken, orgId,
-                summaryIssue, queueIssue, descriptionIssue, assignMeIssue);
-        if (createdIssue == null) {
-            return Oops();
-        }
-        return "Новая задача успешно создана: " + createdIssue;
     }
 
     public String findIssue(String getMessage, Long chatId) {
-        var oauthToken = userInfoStorage.getUserToken(chatId);
-        if (oauthToken.equals("null")) {
-            return GetTokenPlease();
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
         }
+        var oauthToken = userInfoStorage.getUserToken(chatId);
+        var orgId = userInfoStorage.getUserOrgId(chatId);
+
         var tmpArray = getMessage.split(" ");
-        if (tmpArray.length != FIND_ISSUE_MESSAGE_LEN) { // /task orgId issueId
+        if (tmpArray.length != findIssueMessageLen) {
             return "incorrect request: " + Arrays.toString(tmpArray);
         }
-        var orgId = tmpArray[1];
-        var issueId = tmpArray[2];
-        String issueInfo = getIssueInfo(oauthToken, orgId, issueId);
-        System.out.println("find issue info: " + issueInfo);
-        if (issueInfo == null) {
-            return Oops();
-        }
-        return getIssueInfo(oauthToken, orgId, issueId);
-    }
-
-    public String getIssueInfo(String oauthToken, String orgId, String issueId) {
-        String issueInfo;
+        var issueId = tmpArray[1];
         try {
-            issueInfo = trackerClient.getIssueInfo(oauthToken, orgId, issueId).toString();
-        } catch (NullPointerException e) {
-            e.printStackTrace();
-            return Oops();
+            IssueInfo issueInfo = trackerClient.getIssueInfo(oauthToken, orgId, issueId);
+            return issueInfo.toString();
+        } catch (TrackerApiError trackerApiError) {
+            return oops(trackerApiError.getMessage());
         }
-        return issueInfo;
     }
 
-    public String getUserIssues(String messageText, Long chatId) {
+    public String getUserIssues(Long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
         var oauthToken = userInfoStorage.getUserToken(chatId);
-        if (oauthToken.equals("null")) {
-            return GetTokenPlease();
+        var orgId = userInfoStorage.getUserOrgId(chatId);
+        try {
+            List<String> issuesKeysList = trackerClient.findAssignedIssues(oauthToken, orgId);
+            return "Список задач, назначенных на Вас:\n" + issuesKeysList.toString();
+        } catch (TrackerApiError trackerApiError) {
+            return oops(trackerApiError.getMessage());
         }
-        var tmpArray = messageText.split(" ");
-        if (tmpArray.length != MY_ISSUES_MESSAGE_LEN) {
-            return WrongFormat();
-        }
-        var orgId = tmpArray[1];
-        var issuesKeysList = trackerClient.findAssignedIssues(oauthToken, orgId);
-        if (issuesKeysList == null) {
-            return Oops();
-        }
-        return "Список задач, назначенных на Вас:\n" + issuesKeysList.toString();
     }
 
-    public String getNextUserIssues(String messageText, Long chatId) {
+    public String getNextUserIssues(Long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
         var oauthToken = userInfoStorage.getUserToken(chatId);
-        if (oauthToken.equals("null")) {
-            return GetTokenPlease();
+        var orgId = userInfoStorage.getUserOrgId(chatId);
+        try {
+            var issuesKeysList = trackerClient.findNextAssignedIssues(oauthToken, orgId);
+            if (issuesKeysList.isEmpty()) {
+                return "Задач, назначенных на Вас, больше нет.";
+            }
+            return "Список задач, назначенных на Вас:\n" + issuesKeysList.toString();
+        } catch (TrackerApiError trackerApiError) {
+            return oops(trackerApiError.getMessage());
         }
-        var tmpArray = messageText.split(" ");
-        if (tmpArray.length != MY_ISSUES_MESSAGE_LEN) {
-            return WrongFormat();
-        }
-        var orgId = tmpArray[1];
-        var issuesKeysList = trackerClient.findNextAssignedIssues(oauthToken, orgId);
-        if (issuesKeysList == null) {
-            return Oops();
-        }
-        if (issuesKeysList.isEmpty()) {
-            return "Задач, назначенных на Вас, больше нет.";
-        }
-        return "Список задач, назначенных на Вас:\n" + issuesKeysList.toString();
     }
 
     @Override
