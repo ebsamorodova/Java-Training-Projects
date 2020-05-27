@@ -21,32 +21,33 @@ public class TrackerApiClient implements TrackerApiInterface {
     private final int httpCodeCreated = 201;
     private final int lastLinkLength = 13;
     private HttpResponse<String> lastResponse = null;
-    private String createQueueId = null;
+    private String createQueueKey = null;
     private String createSummary = null;
     private String createDescription = null;
     private String createAssignMe = null;
 
     private HttpResponse<String> getResponse(String uri, String oauthToken, String orgId) throws TrackerApiError {
+        System.err.println("GET request uri: " + uri);
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(uri))
                 .headers("Authorization", "OAuth " + oauthToken, "X-Org-Id", orgId)
                 .build();
-        return getResponse(client, request, httpCodeOk);
+        return getResponseAns(client, request, httpCodeOk);
     }
 
     private HttpResponse<String> postResponse(String uri, String oauthToken, String orgId, String requestBody, int ok)  throws TrackerApiError {
-        System.err.println("request uri: " + uri + "\nrequest body: " + requestBody);
+        System.err.println("POST request uri: " + uri + "\nPOST request body: " + requestBody);
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest requestCreatingIssue = HttpRequest.newBuilder()
                 .uri(URI.create(uri))
                 .headers("Authorization", "OAuth " + oauthToken, "X-Org-Id", orgId)
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
-        return getResponse(client, requestCreatingIssue, ok);
+        return getResponseAns(client, requestCreatingIssue, ok);
     }
 
-    private HttpResponse<String> getResponse(HttpClient client, HttpRequest request, int ok) throws TrackerApiError {
+    private HttpResponse<String> getResponseAns(HttpClient client, HttpRequest request, int ok) throws TrackerApiError {
         try {
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != ok) {
@@ -73,8 +74,6 @@ public class TrackerApiClient implements TrackerApiInterface {
     public IssueInfo getIssueInfo(String oauthToken, String orgId, String issueId) throws TrackerApiError {
         var response = getResponse("https://api.tracker.yandex.net/v2/issues/" + issueId,
                 oauthToken, orgId);
-        var responseComments = getResponse("https://api.tracker.yandex.net/v2/issues/" + issueId + "/comments?",
-                oauthToken, orgId);
 
         // two OK responses!
         JSONObject obj = new JSONObject(response.body());
@@ -93,19 +92,25 @@ public class TrackerApiClient implements TrackerApiInterface {
         for (int i = 0; i < issueFollowersList.length(); i++) {
             issueFollowers.add(issueFollowersList.getJSONObject(i).getString("display"));
         }
+        return new IssueInfo(issueId, issueName, issueDescription, issueAuthor, issueExecutor, issueFollowers);
+    }
 
+    @Override
+    public List<String> getIssueComments(String oauthToken, String orgId, String issueId) throws TrackerApiError {
+        var responseComments = getResponse("https://api.tracker.yandex.net/v2/issues/" + issueId + "/comments?",
+                oauthToken, orgId);
         JSONArray objComments = new JSONArray(responseComments.body());
         var issueComments = new ArrayList<String>();
         for (int i = 0; i < objComments.length(); i++) {
             issueComments.add(objComments.getJSONObject(i).getString("text"));
         }
-        return new IssueInfo(issueId, issueName, issueDescription,
-                issueAuthor, issueExecutor, issueFollowers, issueComments);
+        return issueComments;
     }
 
     @Override
-    public void setCreateQueue(String queue) {
-        createQueueId = queue;
+    public void setCreateQueue(String oauthToken, String orgId, String queue) throws TrackerApiError {
+        getResponse("https://api.tracker.yandex.net/v2/queues/" + queue, oauthToken, orgId);
+        createQueueKey = queue;
     }
 
     @Override
@@ -126,13 +131,13 @@ public class TrackerApiClient implements TrackerApiInterface {
     @Override
     public String createNewIssue(String oauthToken, String orgId) throws TrackerApiError {
         var objectMapper = new ObjectMapper();
-        if (createDescription == null || createSummary == null || createQueueId == null || createAssignMe == null) {
+        if (createDescription == null || createSummary == null || createQueueKey == null || createAssignMe == null) {
             throw new TrackerApiError("not all parameters are set");
         }
         var values = new HashMap<String, String>() {{
             put("summary", createSummary);
             put("description", createDescription);
-            put("queue", createQueueId);
+            put("queue", createQueueKey);
         }};
 
         if (createAssignMe.equals("true")) {
@@ -152,7 +157,7 @@ public class TrackerApiClient implements TrackerApiInterface {
 
         createSummary = null;
         createDescription = null;
-        createQueueId = null;
+        createQueueKey = null;
         createAssignMe = null;
         JSONObject obj = new JSONObject(response.body());
         return "https://tracker.yandex.ru/" + obj.getString("key");

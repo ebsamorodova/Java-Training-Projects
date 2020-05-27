@@ -3,16 +3,16 @@ package ru.hse.cs.java2020.task03;
 import org.junit.Test;
 
 import java.nio.file.Files;
-import java.util.ArrayList;
+import java.util.Collections;
 
 import static org.junit.Assert.*;
 
 public class MainTest {
     // здесь и далее надо будет заменить значения
-    private final String oauthToken = "AgAAAABAV8HKAAZY24LbejGY0khIs9dhnIchMQk";
-    private final String orgId = "3972196";
-    private final String realId = "1079493066";
-    private final String realToken = "1113952534:AAFF2g-hWtkA9zaAJypM-wTbzOkZZiFcqAc";
+    private final String oauthToken = "token";
+    private final String orgId = "org_id";
+    private final String userId = "user_id";
+    private final String botToken = "1113952534:AAFF2g-hWtkA9zaAJypM-wTbzOkZZiFcqAc";
 
     // тесты про Яндекс.Трекер API
     @Test
@@ -24,7 +24,7 @@ public class MainTest {
             var issueInfo = trackerClient.getIssueInfo(oauthToken, orgId, issueId);
             IssueInfo testIssue = new IssueInfo("TESTHSEJAVA-1", "test bot",
                     "aaaaaaaaaaaaa", "Екатерина Самородова",
-                    "Екатерина Самородова", new ArrayList<>(), new ArrayList<>());
+                    "Екатерина Самородова", Collections.singletonList("Екатерина Самородова"));
             assertEquals(issueInfo.toString(), testIssue.toString());
         } catch (TrackerApiError e) {
             System.err.println(e.getMessage());
@@ -36,7 +36,7 @@ public class MainTest {
         TrackerApiInterface trackerClient = new TrackerApiClient();
         try {
             var userUid = trackerClient.getUserUid(oauthToken, orgId);
-            assertEquals(realId, userUid);
+            assertEquals(userId, userUid);
         } catch (TrackerApiError e) {
             fail();
         }
@@ -45,12 +45,8 @@ public class MainTest {
     @Test
     public void testWrongQueueCreating() {
         TrackerApiInterface trackerClient = new TrackerApiClient();
-        trackerClient.setCreateSummary("summary");
-        trackerClient.setCreateDescription("description");
-        trackerClient.setCreateQueue("TESTHSEPYTHON"); // нет такой очереди
-        trackerClient.setCreateAssignMe("true");
         try {
-            trackerClient.createNewIssue(oauthToken, orgId);
+            trackerClient.setCreateQueue(oauthToken, orgId, "TESTHSEPYTHON"); // нет такой очереди
             fail();
         } catch (TrackerApiError e) {
             assertEquals(e.getMessage(), "[\"Очередь не существует.\"]");
@@ -71,9 +67,25 @@ public class MainTest {
         UserInfoStorageInterface storage = new MapDBUserInfoStorage(path);
         MyTrackerBot myNewBot = new MyTrackerBot(trackerClient, storage);
         assertEquals(myNewBot.getBotUsername(), "my tracker bot");
-        assertEquals(myNewBot.getBotToken(), realToken);
+        assertEquals(myNewBot.getBotToken(), botToken);
         myNewBot.close();
     }
 
-    // а дальше непонятно, какие тесты писать к боту
+    // тесты про бд
+    @Test
+    public void testDB() {
+        String path;
+        try {
+            path = Files.createTempDirectory(null).toString();
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+            return;
+        }
+        UserInfoStorageInterface storage = new MapDBUserInfoStorage(path);
+        storage.setUserInfo(1, "aaa", "bbb");
+        assertTrue(storage.containsUser(1));
+        assertFalse(storage.containsUser(2));
+        assertEquals(storage.getUserOrgId(1), "bbb");
+        assertEquals(storage.getUserToken(1), "aaa");
+    }
 }

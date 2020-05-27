@@ -5,7 +5,6 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.Arrays;
 import java.util.List;
 
 public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseable {
@@ -52,6 +51,8 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
                         sendMessage(setUserInfo(newMessageText, chatId), update);
                     } else if (newMessageText.startsWith("/issue")) { // получить описание задачи
                         sendMessage(findIssue(newMessageText, chatId), update);
+                    } else if (newMessageText.startsWith("/comments")) {
+                        sendMessage(getIssueComments(newMessageText, chatId), update);
                     } else if (newMessageText.startsWith("/create_summary")) {
                         sendMessage(setCreateSummaryIssue(newMessageText, chatId), update);
                     } else if (newMessageText.startsWith("/create_queue")) {
@@ -110,10 +111,12 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
                 + "организации в формате /take_token token orgId.\n"
                 + "После этого Вы можете получить информацию по задаче "
                 + "с помощью команды /issue issueId или создать "
-                + "новую задачу /create_issue. Для того, чтобы посмотреть "
-                + "задачи, назначенные на Вас, введите /my_issues, "
-                + "ответом на запрос будет не более 10 задач. "
-                + "Для просмотра следующих 10 задач введите /next_issues."
+                + "новую задачу /create_issue. Чтобы посмотреть "
+                + "комментарии по задаче, введите /comments issue_id"
+                + "Для того, чтобы посмотреть задачи, назначенные "
+                + " на Вас, введите /my_issues, ответом на запрос "
+                + " будет не более 5 задач. Для просмотра следующих "
+                + " 10 задач введите /next_issues."
                 + "\nДля того, чтобы бот мяукнул, введите /meow.";
     }
 
@@ -149,20 +152,32 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
             return getTokenPlease();
         }
         var firstIndex = "/create_summary".length() + 1;
+        if (message.length() <= firstIndex) {
+            return oops("Пустое название задачи");
+        }
         trackerClient.setCreateSummary(message.substring(firstIndex));
         return "Название задачи установлено. Пожалуйста, укажите "
-                + "id очереди, в которой Вы хотите создать задачу: "
-                + "/create_queue queue_id.";
+                + "ключ очереди, в которой Вы хотите создать задачу: "
+                + "/create_queue queue_key.";
     }
 
     public String setCreateQueueIssue(String message, Long chatId) {
         if (!userInfoStorage.containsUser(chatId)) {
             return getTokenPlease();
         }
+        var oauthToken = userInfoStorage.getUserToken(chatId);
+        var orgId = userInfoStorage.getUserOrgId(chatId);
         var firstIndex = "/create_queue".length() + 1;
-        trackerClient.setCreateQueue(message.substring(firstIndex));
-        return "Очередь задачи установлена. Пожалуйста, введите "
-                + "описание задачи: /create_description description.";
+        if (message.length() <= firstIndex) {
+            return oops("Пустой ключ очереди");
+        }
+        try {
+            trackerClient.setCreateQueue(oauthToken, orgId, message.substring(firstIndex));
+            return "Очередь задачи установлена. Пожалуйста, введите "
+                    + "описание задачи: /create_description description.";
+        } catch (TrackerApiError trackerApiError) {
+            return oops(trackerApiError.getMessage());
+        }
     }
 
     public String setCreateDescriptionIssue(String message, Long chatId) {
@@ -170,6 +185,9 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
             return getTokenPlease();
         }
         var firstIndex = "/create_description".length() + 1;
+        if (message.length() <= firstIndex) {
+            return oops("Пустое описание задачи");
+        }
         trackerClient.setCreateDescription(message.substring(firstIndex));
         return "Описание задачи установлено. Пожалуйста, укажите, "
                 + "назначить ли Вас исполнителем задачи: "
@@ -180,6 +198,9 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
             return getTokenPlease();
         }
         var firstIndex = "/create_assign".length() + 1;
+        if (message.length() <= firstIndex) {
+            return oops("Пустое поле assign_me");
+        }
         var assignMe = message.substring(firstIndex);
         if (!assignMe.equals("false") && !assignMe.equals("true")) {
             return oops("Unknown parameter value: \"" + assignMe + "\".");
@@ -208,17 +229,45 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
         if (!userInfoStorage.containsUser(chatId)) {
             return getTokenPlease();
         }
-        var oauthToken = userInfoStorage.getUserToken(chatId);
-        var orgId = userInfoStorage.getUserOrgId(chatId);
-
         var tmpArray = getMessage.split(" ");
         if (tmpArray.length != findIssueMessageLen) {
-            return "incorrect request: " + Arrays.toString(tmpArray);
+            return wrongFormat();
         }
+
+        var oauthToken = userInfoStorage.getUserToken(chatId);
+        var orgId = userInfoStorage.getUserOrgId(chatId);
         var issueId = tmpArray[1];
         try {
             IssueInfo issueInfo = trackerClient.getIssueInfo(oauthToken, orgId, issueId);
             return issueInfo.toString();
+        } catch (TrackerApiError trackerApiError) {
+            return oops(trackerApiError.getMessage());
+        }
+    }
+
+    public String getIssueComments(String message, long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
+        var tmpArray = message.split(" ");
+        if (tmpArray.length != findIssueMessageLen) {
+            return wrongFormat();
+        }
+
+        var issueId = tmpArray[1];
+        var oauthToken = userInfoStorage.getUserToken(chatId);
+        var orgId = userInfoStorage.getUserOrgId(chatId);
+        try {
+            List<String> commentsList = trackerClient.getIssueComments(oauthToken, orgId, issueId);
+            if (commentsList.isEmpty()) {
+                return "У заданной задачи комментариев пока нет.";
+            }
+            StringBuilder commentsString = new StringBuilder("Комментарии к задаче " + issueId + ":\n");
+            for (int i = 0; i < commentsList.size(); i++) {
+                commentsString.append(i + 1);
+                commentsString.append(". ").append(commentsList.get(i)).append('\n');
+            }
+            return commentsString.toString();
         } catch (TrackerApiError trackerApiError) {
             return oops(trackerApiError.getMessage());
         }

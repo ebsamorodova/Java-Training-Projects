@@ -4,10 +4,11 @@ import java.util.List;
 
 public interface TrackerApiInterface {
     IssueInfo getIssueInfo(String oauthToken, String orgId, String issueId) throws TrackerApiError;
+    List<String> getIssueComments(String oauthToken, String orgId, String issueId) throws TrackerApiError;
     String createNewIssue(String oauthToken, String orgId) throws TrackerApiError;
     String getUserUid(String oauthToken, String orgId) throws TrackerApiError;
     void setCreateSummary(String summary);
-    void setCreateQueue(String queue);
+    void setCreateQueue(String oauthToken, String orgId, String queue) throws TrackerApiError;
     void setCreateDescription(String description);
     void setCreateAssignMe(String assignMe);
     List<String> findAssignedIssues(String oauthToken, String orgId) throws TrackerApiError;
