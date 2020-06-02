@@ -12,6 +12,7 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
     private UserInfoStorageInterface userInfoStorage;
     private final int tokenMessageLen = 3;
     private final int findIssueMessageLen = 2;
+    private final int pageSize = 5;
 
     public MyTrackerBot(TrackerApiInterface trackerInterface,
                         UserInfoStorageInterface userInterface) {
@@ -61,6 +62,8 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
                         sendMessage(setCreateDescriptionIssue(newMessageText, chatId), update);
                     } else if (newMessageText.startsWith("/create_assign")) {
                         sendMessage(setCreateAssignMeIssue(newMessageText, chatId), update);
+                    } else if (newMessageText.startsWith("/get_issue")) {
+                        sendMessage(findAssignedIssue(newMessageText, chatId), update);
                     } else {
                         sendMessage("Неизвестный формат запроса, "
                                 + "пожалуйста, попробуйте ещё раз", update);
@@ -76,7 +79,7 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
 
     @Override
     public String getBotToken() {
-        return "1113952534:AAFF2g-hWtkA9zaAJypM-wTbzOkZZiFcqAc";
+        return "botToken";
     }
 
     public void sendMessage(String messageText, Update update) {
@@ -115,8 +118,10 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
                 + "комментарии по задаче, введите /comments issue_id"
                 + "Для того, чтобы посмотреть задачи, назначенные "
                 + " на Вас, введите /my_issues, ответом на запрос "
-                + " будет не более 5 задач. Для просмотра следующих "
-                + " 10 задач введите /next_issues."
+                + " будет не более " + pageSize + " задач. Для просмотра "
+                + "следующих 10 задач введите /next_issues."
+                + "Чтобы получить информациб по N-ой выведенной задаче, "
+                + "наберите /get_issue N."
                 + "\nДля того, чтобы бот мяукнул, введите /meow.";
     }
 
@@ -155,7 +160,7 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
         if (message.length() <= firstIndex) {
             return oops("Пустое название задачи");
         }
-        trackerClient.setCreateSummary(message.substring(firstIndex));
+        userInfoStorage.setIssueSummary(chatId, message.substring(firstIndex));
         return "Название задачи установлено. Пожалуйста, укажите "
                 + "ключ очереди, в которой Вы хотите создать задачу: "
                 + "/create_queue queue_key.";
@@ -172,7 +177,8 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
             return oops("Пустой ключ очереди");
         }
         try {
-            trackerClient.setCreateQueue(oauthToken, orgId, message.substring(firstIndex));
+            trackerClient.tryQueueKey(oauthToken, orgId, message.substring(firstIndex));
+            userInfoStorage.setIssueQueue(chatId, message.substring(firstIndex));
             return "Очередь задачи установлена. Пожалуйста, введите "
                     + "описание задачи: /create_description description.";
         } catch (TrackerApiError trackerApiError) {
@@ -188,11 +194,12 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
         if (message.length() <= firstIndex) {
             return oops("Пустое описание задачи");
         }
-        trackerClient.setCreateDescription(message.substring(firstIndex));
+        userInfoStorage.setIssueDescription(chatId, message.substring(firstIndex));
         return "Описание задачи установлено. Пожалуйста, укажите, "
                 + "назначить ли Вас исполнителем задачи: "
                 + "/create_assign true или /create_assign false.";
     }
+
     public String setCreateAssignMeIssue(String message, Long chatId) {
         if (!userInfoStorage.containsUser(chatId)) {
             return getTokenPlease();
@@ -206,22 +213,37 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
             return oops("Unknown parameter value: \"" + assignMe + "\".");
 
         }
-        trackerClient.setCreateAssignMe(assignMe);
+        userInfoStorage.setAssignMe(chatId, assignMe.equals("true"));
         return "Все параметры задачи установлены. Пожалуйста, "
-                + "введите /done для завершения создания задачи.";
+                + "введите /done_issue для завершения создания задачи.";
     }
 
     public String createNewIssue(Long chatId) {
         if (!userInfoStorage.containsUser(chatId)) {
             return getTokenPlease();
         }
+
+        if (!userInfoStorage.containsSummary(chatId)
+                || !userInfoStorage.containsDescription(chatId)
+                || !userInfoStorage.containsQueue(chatId)
+                || !userInfoStorage.containsAssignMe(chatId)) {
+            return oops("not all issue parameters are set");
+        }
+
         var oauthToken = userInfoStorage.getUserToken(chatId);
         var orgId = userInfoStorage.getUserOrgId(chatId);
+        var issueSummary = userInfoStorage.getIssueSummary(chatId);
+        var issueDescription = userInfoStorage.getIssueDescription(chatId);
+        var issueQueueKey = userInfoStorage.getIssueQueue(chatId);
+        var issueAssignMe = userInfoStorage.getIssueAssignMe(chatId);
+
         try {
-            String createdIssue = trackerClient.createNewIssue(oauthToken, orgId);
+            String createdIssue = trackerClient.createNewIssue(oauthToken, orgId, issueSummary,
+                    issueDescription, issueQueueKey, issueAssignMe);
+            userInfoStorage.clearIssueInfo(chatId);
             return "Новая задача успешно создана: " + createdIssue;
-        } catch (TrackerApiError trackerApiError) {
-            return oops(trackerApiError.getMessage());
+        } catch (Exception e) {
+            return oops(e.getMessage());
         }
     }
 
@@ -280,8 +302,18 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
         var oauthToken = userInfoStorage.getUserToken(chatId);
         var orgId = userInfoStorage.getUserOrgId(chatId);
         try {
-            List<String> issuesKeysList = trackerClient.findAssignedIssues(oauthToken, orgId);
-            return "Список задач, назначенных на Вас:\n" + issuesKeysList.toString();
+            IssuesListAndLink issuesInfo = trackerClient.findAssignedIssues(oauthToken, orgId);
+            var issuesKeysString = new StringBuilder();
+            var pageNumber = issuesInfo.getPageNumber();
+            List issues = issuesInfo.getIssuesKeys();
+            for (int i = 0; i < issues.size(); ++i) {
+                issuesKeysString.append((i + 1) + pageNumber * pageSize);
+                issuesKeysString.append(". ");
+                issuesKeysString.append(issues.get(i));
+                issuesKeysString.append("\n");
+            }
+            userInfoStorage.setIssuesInfo(chatId, issuesInfo);
+            return "Список задач, назначенных на Вас:\n" + issuesKeysString.toString();
         } catch (TrackerApiError trackerApiError) {
             return oops(trackerApiError.getMessage());
         }
@@ -291,14 +323,57 @@ public class MyTrackerBot extends TelegramLongPollingBot implements AutoCloseabl
         if (!userInfoStorage.containsUser(chatId)) {
             return getTokenPlease();
         }
+        if (!userInfoStorage.containsIssuesInfo(chatId)) {
+            return "Calling /next_issues before /my_issues";
+        }
         var oauthToken = userInfoStorage.getUserToken(chatId);
         var orgId = userInfoStorage.getUserOrgId(chatId);
+        var lastIssuesInfo = userInfoStorage.getIssuesInfo(chatId);
+        var curPageLink = lastIssuesInfo.getNextPageLink();
+        var curPageNumber = lastIssuesInfo.getPageNumber();
         try {
-            var issuesKeysList = trackerClient.findNextAssignedIssues(oauthToken, orgId);
-            if (issuesKeysList.isEmpty()) {
+            var issuesInfo = trackerClient.findNextAssignedIssues(oauthToken, orgId, curPageLink, curPageNumber);
+            userInfoStorage.setIssuesInfo(chatId, issuesInfo);
+            if (issuesInfo.getIssuesKeys().isEmpty()) {
                 return "Задач, назначенных на Вас, больше нет.";
             }
-            return "Список задач, назначенных на Вас:\n" + issuesKeysList.toString();
+
+            var issuesKeysString = new StringBuilder();
+            var pageNumber = issuesInfo.getPageNumber();
+            List issues = issuesInfo.getIssuesKeys();
+            for (int i = 0; i < issues.size(); ++i) {
+                issuesKeysString.append((i + 1) + pageNumber * pageSize);
+                issuesKeysString.append(". ");
+                issuesKeysString.append(issues.get(i));
+                issuesKeysString.append("\n");
+            }
+            userInfoStorage.setIssuesInfo(chatId, issuesInfo);
+            return "Список задач, назначенных на Вас:\n" + issuesKeysString.toString();
+        } catch (TrackerApiError trackerApiError) {
+            return oops(trackerApiError.getMessage());
+        }
+    }
+
+    public String findAssignedIssue(String message, long chatId) {
+        if (!userInfoStorage.containsUser(chatId)) {
+            return getTokenPlease();
+        }
+        var oauthToken = userInfoStorage.getUserToken(chatId);
+        var orgId = userInfoStorage.getUserOrgId(chatId);
+
+        if (!userInfoStorage.containsIssuesInfo(chatId)) {
+            return oops("Calling /get issue_number before /my_issues");
+        }
+        var tmpArray = message.split(" ");
+        if (tmpArray.length != findIssueMessageLen) {
+            return wrongFormat();
+        }
+        var lastIssuesInfo = userInfoStorage.getIssuesInfo(chatId);
+        var pageNumber = lastIssuesInfo.getPageNumber();
+        var number = Integer.valueOf(tmpArray[1]) - pageNumber * pageSize - 1;
+        var issueKey = lastIssuesInfo.getIssuesKeys().get(number);
+        try {
+            return trackerClient.getIssueInfo(oauthToken, orgId, issueKey).toString();
         } catch (TrackerApiError trackerApiError) {
             return oops(trackerApiError.getMessage());
         }

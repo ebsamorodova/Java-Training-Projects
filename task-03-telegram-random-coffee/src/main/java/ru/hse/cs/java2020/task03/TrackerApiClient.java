@@ -20,11 +20,11 @@ public class TrackerApiClient implements TrackerApiInterface {
     private final int httpCodeOk = 200;
     private final int httpCodeCreated = 201;
     private final int lastLinkLength = 13;
-    private HttpResponse<String> lastResponse = null;
-    private String createQueueKey = null;
-    private String createSummary = null;
-    private String createDescription = null;
-    private String createAssignMe = null;
+    private final String prefixUri = "https://api.tracker.yandex.net/v2/";
+//    private HttpResponse<String> lastResponse = null;
+//    private int pageCnt = 0;
+//    private final int pageSize = 5;
+//    private HashMap<Integer, IssueInfo> myIssuesMap;
 
     private HttpResponse<String> getResponse(String uri, String oauthToken, String orgId) throws TrackerApiError {
         System.err.println("GET request uri: " + uri);
@@ -64,7 +64,7 @@ public class TrackerApiClient implements TrackerApiInterface {
 
     @Override
     public String getUserUid(String oauthToken, String orgId) throws TrackerApiError {
-        var responseMe = getResponse("https://api.tracker.yandex.net/v2/myself",
+        var responseMe = getResponse(prefixUri + "myself",
                 oauthToken, orgId);
         JSONObject obj = new JSONObject(responseMe.body());
         return ((Long) obj.getLong("uid")).toString();
@@ -72,7 +72,7 @@ public class TrackerApiClient implements TrackerApiInterface {
 
     @Override
     public IssueInfo getIssueInfo(String oauthToken, String orgId, String issueId) throws TrackerApiError {
-        var response = getResponse("https://api.tracker.yandex.net/v2/issues/" + issueId,
+        var response = getResponse(prefixUri + "issues/" + issueId,
                 oauthToken, orgId);
 
         // two OK responses!
@@ -97,7 +97,7 @@ public class TrackerApiClient implements TrackerApiInterface {
 
     @Override
     public List<String> getIssueComments(String oauthToken, String orgId, String issueId) throws TrackerApiError {
-        var responseComments = getResponse("https://api.tracker.yandex.net/v2/issues/" + issueId + "/comments?",
+        var responseComments = getResponse(prefixUri + "issues/" + issueId + "/comments?",
                 oauthToken, orgId);
         JSONArray objComments = new JSONArray(responseComments.body());
         var issueComments = new ArrayList<String>();
@@ -108,39 +108,21 @@ public class TrackerApiClient implements TrackerApiInterface {
     }
 
     @Override
-    public void setCreateQueue(String oauthToken, String orgId, String queue) throws TrackerApiError {
-        getResponse("https://api.tracker.yandex.net/v2/queues/" + queue, oauthToken, orgId);
-        createQueueKey = queue;
+    public void tryQueueKey(String oauthToken, String orgId, String queue) throws TrackerApiError {
+        getResponse(prefixUri + "queues/" + queue, oauthToken, orgId);
     }
 
     @Override
-    public void setCreateSummary(String summary) {
-        createSummary = summary;
-    }
-
-    @Override
-    public void setCreateDescription(String description) {
-        createDescription = description;
-    }
-
-    @Override
-    public void setCreateAssignMe(String assignMe) {
-        createAssignMe = assignMe;
-    }
-
-    @Override
-    public String createNewIssue(String oauthToken, String orgId) throws TrackerApiError {
+    public String createNewIssue(String oauthToken, String orgId, String summary, String description,
+                                 String queueKey, boolean assignMe) throws TrackerApiError {
         var objectMapper = new ObjectMapper();
-        if (createDescription == null || createSummary == null || createQueueKey == null || createAssignMe == null) {
-            throw new TrackerApiError("not all parameters are set");
-        }
         var values = new HashMap<String, String>() {{
-            put("summary", createSummary);
-            put("description", createDescription);
-            put("queue", createQueueKey);
+            put("summary", summary);
+            put("description", description);
+            put("queue", queueKey);
         }};
 
-        if (createAssignMe.equals("true")) {
+        if (assignMe) {
             var creatorId = getUserUid(oauthToken, orgId);
             values.put("assignee",  creatorId);
         }
@@ -152,50 +134,48 @@ public class TrackerApiClient implements TrackerApiInterface {
             e.printStackTrace();
         }
         assert (requestBody != null);
-        var response = postResponse("https://api.tracker.yandex.net/v2/issues/",
+        var response = postResponse(prefixUri + "issues/",
                 oauthToken, orgId, requestBody, httpCodeCreated);
-
-        createSummary = null;
-        createDescription = null;
-        createQueueKey = null;
-        createAssignMe = null;
         JSONObject obj = new JSONObject(response.body());
         return "https://tracker.yandex.ru/" + obj.getString("key");
     }
 
     @Override
-    public List<String> findAssignedIssues(String oauthToken, String orgId) throws TrackerApiError {
+    public IssuesListAndLink findAssignedIssues(String oauthToken, String orgId) throws TrackerApiError {
         var userId = getUserUid(oauthToken, orgId);
         var requestBody = "{\"filter\": { \"assignee\" : \"" + userId + "\"}}";
-        var uri = "https://api.tracker.yandex.net/v2/issues/_search?"
-                + "order=%2BupdatedAt&scrollType=sorted&perScroll=5";
-        return getIssuesList(oauthToken, orgId, uri, requestBody);
+        var uri = prefixUri + "issues/_search?order=%2BupdatedAt&scrollType=sorted&perScroll=5";
+        var response = postResponse(uri, oauthToken, orgId, requestBody, httpCodeOk);
+        String nextPageLink = null;
+        if (response.headers().allValues("link").size() > 1) { // нет следующих
+            var headerLink = response.headers().allValues("link").get(1); // ref="next"
+            nextPageLink = headerLink.substring(1, headerLink.length() - lastLinkLength);
+        }
+        return new IssuesListAndLink(nextPageLink, getIssuesList(response), 0);
     }
 
     @Override
-    public List<String> findNextAssignedIssues(String oauthToken, String orgId) throws TrackerApiError {
+    public IssuesListAndLink findNextAssignedIssues(String oauthToken, String orgId, String curPageLink, int page) throws TrackerApiError {
         var userId = getUserUid(oauthToken, orgId);
-        if (lastResponse == null) {
-            throw new TrackerApiError("Calling /next_issues before /my_issues");
-        }
-        if (lastResponse.headers().allValues("link").size() == 1) {
-            return new ArrayList<>();
-        }
-        var headerLink = lastResponse.headers().allValues("link").get(1); // ref="next"
-        var nextPageLink = headerLink.substring(1, headerLink.length() - lastLinkLength);
         var requestBody = "{\"filter\": { \"assignee\" : \"" + userId + "\"}}";
-        return getIssuesList(oauthToken, orgId, nextPageLink, requestBody);
+        var response = postResponse(curPageLink, oauthToken, orgId, requestBody, httpCodeOk);
+        String nextPageLink = null;
+        if (response.headers().allValues("link").size() > 1) { // нет следующих
+            var headerLink = response.headers().allValues("link").get(1); // ref="next"
+            nextPageLink = headerLink.substring(1, headerLink.length() - lastLinkLength);
+        }
+        return new IssuesListAndLink(nextPageLink, getIssuesList(response), page + 1);
     }
 
     @NotNull
-    private List<String> getIssuesList(String oauthToken, String orgId, String nextPageLink, String requestBody) throws TrackerApiError {
-        var response = postResponse(nextPageLink, oauthToken, orgId, requestBody, httpCodeOk);
-        lastResponse = response;
+    private List<String> getIssuesList(HttpResponse<String> response) throws TrackerApiError {
         JSONArray issues = new JSONArray(response.body());
-        ArrayList<String> myIssues = new ArrayList<>();
+
+        var issuesList = new ArrayList<String>();
         for (int i = 0; i < issues.length(); i++) {
-            myIssues.add(issues.getJSONObject(i).getString("key"));
+            var issueKey = issues.getJSONObject(i).getString("key");
+            issuesList.add(issueKey);
         }
-        return myIssues;
+        return issuesList;
     }
 }

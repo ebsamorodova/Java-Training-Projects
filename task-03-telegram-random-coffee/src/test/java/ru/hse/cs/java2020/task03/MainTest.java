@@ -10,9 +10,9 @@ import static org.junit.Assert.*;
 public class MainTest {
     // здесь и далее надо будет заменить значения
     private final String oauthToken = "token";
-    private final String orgId = "org_id";
-    private final String userId = "user_id";
-    private final String botToken = "1113952534:AAFF2g-hWtkA9zaAJypM-wTbzOkZZiFcqAc";
+    private final String orgId = "id";
+    private final String userId = "userId";
+    private final String botToken = "botToken";
 
     // тесты про Яндекс.Трекер API
     @Test
@@ -46,7 +46,7 @@ public class MainTest {
     public void testWrongQueueCreating() {
         TrackerApiInterface trackerClient = new TrackerApiClient();
         try {
-            trackerClient.setCreateQueue(oauthToken, orgId, "TESTHSEPYTHON"); // нет такой очереди
+            trackerClient.tryQueueKey(oauthToken, orgId, "TESTHSEPYTHON"); // нет такой очереди
             fail();
         } catch (TrackerApiError e) {
             assertEquals(e.getMessage(), "[\"Очередь не существует.\"]");
