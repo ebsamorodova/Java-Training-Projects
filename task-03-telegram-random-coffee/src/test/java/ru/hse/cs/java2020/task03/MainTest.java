@@ -13,6 +13,7 @@ public class MainTest {
     private final String orgId = "id";
     private final String userId = "userId";
     private final String botToken = "botToken";
+    private final long chatId = 1L;
 
     // тесты про Яндекс.Трекер API
     @Test
@@ -69,6 +70,27 @@ public class MainTest {
         assertEquals(myNewBot.getBotUsername(), "my tracker bot");
         assertEquals(myNewBot.getBotToken(), botToken);
         myNewBot.close();
+    }
+
+    @Test
+    public void testCreateIssue() {
+        String path;
+        try {
+            path = Files.createTempDirectory(null).toString();
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+            return;
+        }
+        TrackerApiInterface trackerClient = new TrackerApiClient();
+        UserInfoStorageInterface storage = new MapDBUserInfoStorage(path);
+        MyTrackerBot myNewBot = new MyTrackerBot(trackerClient, storage);
+        myNewBot.setUserInfo("/take_token " + oauthToken + " " + orgId, chatId);
+        myNewBot.setCreateSummaryIssue("/create_summary test create issue", chatId);
+        myNewBot.setCreateDescriptionIssue("/create_description description", chatId);
+        myNewBot.setCreateQueueIssue("/create_queue TESTHSEJAVA", chatId);
+        myNewBot.setCreateAssignMeIssue("/create_assign true", chatId);
+        var ans = myNewBot.createNewIssue(chatId);
+        assertTrue(ans.startsWith("Новая задача успешно создана"));
     }
 
     // тесты про бд
